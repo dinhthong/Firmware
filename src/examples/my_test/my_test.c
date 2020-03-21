@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2015 Mark Charlebois. All rights reserved.
+ *   Copyright (c) 2012-2019 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,67 +32,52 @@
  ****************************************************************************/
 
 /**
- * @file hello_start_posix.cpp
+ * @file px4_simple_app.c
+ * Minimal application example for PX4 autopilot
  *
- * @author Thomas Gubler <thomasgubler@gmail.com>
- * @author Mark Charlebois <mcharleb@gmail.com>
+ * @author Example User <mail@example.com>
  */
-#include "hello_example.h"
 
-#include <px4_platform_common/log.h>
-#include <px4_platform_common/app.h>
+#include <px4_platform_common/px4_config.h>
 #include <px4_platform_common/tasks.h>
+#include <px4_platform_common/posix.h>
+#include <unistd.h>
 #include <stdio.h>
+#include <poll.h>
 #include <string.h>
-#include <sched.h>
+#include <math.h>
 
-static int daemon_task;             /* Handle of deamon task / thread */
+#include <uORB/uORB.h>
+#include <uORB/topics/sensor_combined.h>
+#include <uORB/topics/vehicle_attitude.h>
 
-//using namespace px4;
 
-extern "C" __EXPORT int hello_main(int argc, char *argv[]);
-int hello_main(int argc, char *argv[])
+__EXPORT int my_test_main(int argc, char *argv[]);
+
+int my_test_main(int argc, char *argv[])
 {
+	PX4_INFO("Hello Sky!");
+	int sensor_sub_fd = orb_subscribe(ORB_ID(sensor_combined));
 
-	if (argc < 2) {
-		PX4_WARN("usage: hello {start|stop|status}\n");
-		return 1;
-	}
+	/* one could wait for multiple topics with this technique, just using one here */
+	px4_pollfd_struct_t fds[] = {
+	{ .fd = sensor_sub_fd,   .events = POLLIN },
+	};
+	while (true) {
+    /* wait for sensor update of 1 file descriptor for 1000 ms (1 second) */
+     px4_poll(fds, 1, 1000);
 
-	if (!strcmp(argv[1], "start")) {
+    if (fds[0].revents & POLLIN) {
+        /* obtained data for the first file descriptor */
+        struct sensor_combined_s raw;
+        /* copy sensors raw data into local buffer */
+        orb_copy(ORB_ID(sensor_combined), sensor_sub_fd, &raw);
+        PX4_INFO("Accelerometer:\t%8.4f\t%8.4f\t%8.4f",
+                    (double)raw.accelerometer_m_s2[0],
+                    (double)raw.accelerometer_m_s2[1],
+                    (double)raw.accelerometer_m_s2[2]);
+    }
+}
 
-		if (HelloExample::appState.isRunning()) {
-			PX4_INFO("already running\n");
-			/* this is not an error */
-			return 0;
-		}
-
-		daemon_task = px4_task_spawn_cmd("hello",
-						 SCHED_DEFAULT,
-						 SCHED_PRIORITY_MAX - 5,
-						 2000,
-						 PX4_MAIN,
-						 (argv) ? (char *const *)&argv[2] : (char *const *)nullptr);
-		PX4_INFO("Would it reaches here? Test point\n");
-		return 0;
-	}
-
-	if (!strcmp(argv[1], "stop")) {
-		HelloExample::appState.requestExit();
-		return 0;
-	}
-
-	if (!strcmp(argv[1], "status")) {
-		if (HelloExample::appState.isRunning()) {
-			PX4_INFO("is running\n");
-
-		} else {
-			PX4_INFO("not started\n");
-		}
-
-		return 0;
-	}
-
-	PX4_WARN("usage: hello_main {start|stop|status}\n");
-	return 1;
+	return 0;
 }

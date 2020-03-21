@@ -215,8 +215,8 @@ else
 	# Needs to be started after the parameters are loaded (for CBRK_BUZZER).
 	# Note that this will still play the already published startup tone.
 	#
+	# Comment out this line and build the code again
 	tone_alarm start
-
 	#
 	# Set parameters and env variables for selected AUTOSTART.
 	#
